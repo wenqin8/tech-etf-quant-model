@@ -1,0 +1,18 @@
+version: 1
+presets:
+  trend_baseline:
+    strategy_id: trend_baseline
+    rebalance_frequency: weekly
+    fast_window: 20
+    slow_window: 60
+    maximum_position_weight: 0.25
+    minimum_cash_weight: 0.10
+  etf_rotation:
+    strategy_id: etf_rotation
+    rebalance_frequency: weekly
+    momentum_windows: [20, 60, 120]
+    volatility_window: 20
+    holdings_count: 3
+    maximum_position_weight: 0.35
+    minimum_cash_weight: 0.10
+

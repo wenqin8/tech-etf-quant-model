@@ -1,0 +1,11 @@
+# ETF Quant Lab local Streamlit configuration.
+
+[browser]
+# Disable sending usage statistics / telemetry to Streamlit.
+gatherUsageStats = false
+
+[server]
+# Research tool is local-only; never expose beyond loopback.
+address = "127.0.0.1"
+headless = true
+port = 8510

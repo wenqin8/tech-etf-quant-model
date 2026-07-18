@@ -1,0 +1,19 @@
+version: 1
+currency: CNY
+scenarios:
+  ideal:
+    commission_rate: 0.0001
+    minimum_commission: 0.0
+    slippage_bps: 0.0
+    transfer_fee_rate: 0.0
+  normal:
+    commission_rate: 0.00025
+    minimum_commission: 5.0
+    slippage_bps: 5.0
+    transfer_fee_rate: 0.0
+  pessimistic:
+    commission_rate: 0.0005
+    minimum_commission: 5.0
+    slippage_bps: 15.0
+    transfer_fee_rate: 0.0
+

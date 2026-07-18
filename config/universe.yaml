@@ -1,0 +1,295 @@
+schema_version: 1
+metadata_version: "2026-07-16"
+
+# Initial research universe only. Names and benchmark labels are descriptive
+# metadata; provider adapters will cross-check official instrument metadata.
+instruments:
+  - symbol: 510300.SH
+    name: 沪深300ETF
+    exchange: SSE
+    category: BROAD_BASE
+    benchmark_symbol: 000300.SH
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: core_equity
+
+  - symbol: 510500.SH
+    name: 中证500ETF
+    exchange: SSE
+    category: BROAD_BASE
+    benchmark_symbol: 000905.SH
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: mid_cap_equity
+
+  - symbol: 512100.SH
+    name: 中证1000ETF
+    exchange: SSE
+    category: BROAD_BASE
+    benchmark_symbol: 000852.SH
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: small_cap_equity
+
+  - symbol: 159915.SZ
+    name: 创业板ETF
+    exchange: SZSE
+    category: GROWTH
+    benchmark_symbol: 399006.SZ
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: growth_equity
+
+  - symbol: 588000.SH
+    name: 科创50ETF
+    exchange: SSE
+    category: GROWTH
+    benchmark_symbol: 000688.SH
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: innovation_equity
+
+  - symbol: 510880.SH
+    name: 红利ETF
+    exchange: SSE
+    category: STYLE
+    benchmark_symbol: 000015.SH
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: dividend_equity
+
+  - symbol: 512890.SH
+    name: 红利低波ETF
+    exchange: SSE
+    category: STYLE
+    benchmark_symbol: 930955.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: defensive_equity
+
+  - symbol: 518880.SH
+    name: 黄金ETF
+    exchange: SSE
+    category: GOLD
+    benchmark_symbol: null
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: commodity_diversifier
+
+  - symbol: 511010.SH
+    name: 国债ETF
+    exchange: SSE
+    category: BOND
+    benchmark_symbol: null
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: short_duration_bond
+
+  - symbol: 511260.SH
+    name: 十年国债ETF
+    exchange: SSE
+    category: BOND
+    benchmark_symbol: null
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: long_duration_bond
+
+  - symbol: 511880.SH
+    name: 货币ETF
+    exchange: SSE
+    category: CASH
+    benchmark_symbol: null
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: cash_proxy
+
+  - symbol: 512800.SH
+    name: 银行ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 399986.SZ
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: industry_satellite
+
+  # --- 2026-07-15 扩充: 半导体与科技主题 ---
+
+  - symbol: 512480.SH
+    name: 半导体ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 990001.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: semiconductor
+
+  - symbol: 159995.SZ
+    name: 芯片ETF
+    exchange: SZSE
+    category: INDUSTRY
+    benchmark_symbol: 980017.CNI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: semiconductor
+
+  - symbol: 588200.SH
+    name: 科创芯片ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 000685.SH
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: semiconductor
+
+  - symbol: 515790.SH
+    name: 光伏ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 931151.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: new_energy
+
+  - symbol: 515030.SH
+    name: 新能源车ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 930997.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: new_energy
+
+  - symbol: 512760.SH
+    name: 芯片龙头ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 990100.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: semiconductor
+
+  - symbol: 159819.SZ
+    name: 人工智能ETF
+    exchange: SZSE
+    category: INDUSTRY
+    benchmark_symbol: 930713.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: technology
+
+  - symbol: 512720.SH
+    name: 计算机ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 930651.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: technology
+
+  # --- 2026-07-16 扩充: 机器人与行业主题 ---
+
+  - symbol: 562500.SH
+    name: 机器人ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: H30590.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: robotics
+
+  - symbol: 159770.SZ
+    name: 机器人ETF基金
+    exchange: SZSE
+    category: INDUSTRY
+    benchmark_symbol: H30590.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: robotics
+
+  - symbol: 512660.SH
+    name: 军工ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 399967.SZ
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: defense
+
+  - symbol: 512170.SH
+    name: 医疗ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 399989.SZ
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: healthcare
+
+  - symbol: 512000.SH
+    name: 券商ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 399975.SZ
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: brokerage
+
+  - symbol: 159928.SZ
+    name: 消费ETF
+    exchange: SZSE
+    category: INDUSTRY
+    benchmark_symbol: 000932.SH
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: consumer

@@ -1,0 +1,17 @@
+env: development
+timezone: Asia/Shanghai
+primary_provider: TUSHARE
+secondary_provider: AKSHARE
+http_timeout_seconds: 30
+http_max_retries: 3
+signal_hour: 16
+signal_minute: 30
+scheduler_enabled: true
+lock_timeout_seconds: 900
+default_initial_cash: 1000000
+log_level: INFO
+log_retention_days: 30
+enable_manual_csv: true
+notification_mode: local
+streamlit_host: 127.0.0.1
+streamlit_port: 8501
