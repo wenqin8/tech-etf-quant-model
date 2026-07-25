@@ -1,5 +1,5 @@
 schema_version: 1
-metadata_version: "2026-07-16"
+metadata_version: "2026-07-25"
 
 # Initial research universe only. Names and benchmark labels are descriptive
 # metadata; provider adapters will cross-check official instrument metadata.
@@ -171,6 +171,28 @@ instruments:
     metadata:
       role: semiconductor
 
+  - symbol: 159516.SZ
+    name: 半导体设备ETF
+    exchange: SZSE
+    category: INDUSTRY
+    benchmark_symbol: 931743.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: semiconductor_equipment
+
+  - symbol: 588170.SH
+    name: 科创半导体ETF
+    exchange: SSE
+    category: INDUSTRY
+    benchmark_symbol: 950125.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: semiconductor_equipment
+
   - symbol: 515790.SH
     name: 光伏ETF
     exchange: SSE
@@ -271,6 +293,17 @@ instruments:
     enabled: true
     metadata:
       role: healthcare
+
+  - symbol: 159992.SZ
+    name: 创新药ETF
+    exchange: SZSE
+    category: INDUSTRY
+    benchmark_symbol: 931152.CSI
+    lot_size: 100
+    price_tick: "0.001"
+    enabled: true
+    metadata:
+      role: innovation_drug
 
   - symbol: 512000.SH
     name: 券商ETF

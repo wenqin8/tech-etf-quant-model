@@ -201,9 +201,9 @@ def test_default_universe_configuration_loads_all_etfs() -> None:
         ReloadUniverseRequest(config_path=Path("config/universe.yaml"))
     )
 
-    # 12 initial (07-13) + 8 semis/tech (07-15) + 6 robotics/sector (07-16).
-    assert len(result.added) == 26
-    assert len(repository.list_all()) == 26
+    # 12 initial + 8 semis/tech + 6 robotics/sector + 3 focused additions.
+    assert len(result.added) == 29
+    assert len(repository.list_all()) == 29
     assert all(item.lot_size == 100 for item in repository.list_all())
     assert all(item.price_tick == Decimal("0.001") for item in repository.list_all())
     semiconductor = [
@@ -217,9 +217,24 @@ def test_default_universe_configuration_loads_all_etfs() -> None:
         "588200.SH",
         "512760.SH",
     }
+    semiconductor_equipment = [
+        item
+        for item in repository.list_all()
+        if item.metadata.get("role") == "semiconductor_equipment"
+    ]
+    assert {item.symbol for item in semiconductor_equipment} == {
+        "159516.SZ",
+        "588170.SH",
+    }
     robotics = [
         item
         for item in repository.list_all()
         if item.metadata.get("role") == "robotics"
     ]
     assert {item.symbol for item in robotics} == {"562500.SH", "159770.SZ"}
+    innovation_drug = [
+        item
+        for item in repository.list_all()
+        if item.metadata.get("role") == "innovation_drug"
+    ]
+    assert {item.symbol for item in innovation_drug} == {"159992.SZ"}

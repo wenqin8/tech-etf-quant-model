@@ -62,6 +62,7 @@ class QualityGateStatus(StrEnum):
 class StrategyId(StrEnum):
     TREND_BASELINE = "TREND_BASELINE"
     ETF_ROTATION = "ETF_ROTATION"
+    THREE_DAY_TECH = "THREE_DAY_TECH"
 
 
 class CostScenario(StrEnum):

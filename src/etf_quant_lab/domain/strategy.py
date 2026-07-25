@@ -34,6 +34,8 @@ class StrategyContext:
     quality_report_id: str | None = None
     current_weights: Mapping[str, Decimal] = field(default_factory=dict)
     cash_weight: Decimal = Decimal(1)
+    position_holding_bars: Mapping[str, int] = field(default_factory=dict)
+    position_entry_prices: Mapping[str, Decimal] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.market_data.as_of_date != self.as_of_date:
@@ -42,6 +44,10 @@ class StrategyContext:
             raise ValueError("current_weights must not contain negative values")
         if self.cash_weight < 0 or self.cash_weight > 1:
             raise ValueError("cash_weight must be within [0, 1]")
+        if any(value < 0 for value in self.position_holding_bars.values()):
+            raise ValueError("position_holding_bars must not contain negative values")
+        if any(value <= 0 for value in self.position_entry_prices.values()):
+            raise ValueError("position_entry_prices must contain positive values")
 
 
 @runtime_checkable

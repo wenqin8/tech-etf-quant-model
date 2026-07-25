@@ -12,7 +12,7 @@ import pytest
 from etf_quant_lab.contracts.data import DailyBarsQuery, TradeCalendarQuery
 from etf_quant_lab.contracts.enums import DataSource, Exchange, PriceAdjustment
 from etf_quant_lab.contracts.errors import DomainError, ErrorCode
-from etf_quant_lab.data.providers.akshare import AkshareProvider
+from etf_quant_lab.data.providers.akshare import AkshareProvider, _adjust_sina_etf_qfq
 from etf_quant_lab.ids import FixedIdGenerator
 
 FETCHED_AT = datetime(2026, 7, 14, 16, 5, tzinfo=ZoneInfo("Asia/Shanghai"))
@@ -31,6 +31,22 @@ def _daily_frame() -> pd.DataFrame:
                 "成交量": 3840291.0,
                 "成交额": "1547220030.00",
                 "换手率": 0.72,
+            }
+        ]
+    )
+
+
+def _sina_daily_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "date": date(2026, 7, 10),
+                "open": 4.001,
+                "high": 4.056,
+                "low": 3.998,
+                "close": 4.043,
+                "volume": 384029100,
+                "amount": 1547220030.0,
             }
         ]
     )
@@ -160,6 +176,104 @@ def test_daily_bars_rejects_symbol_that_cannot_map_to_akshare() -> None:
         )
 
     assert exc_info.value.code == ErrorCode.VALIDATION_ERROR.value
+
+
+def test_qfq_query_falls_back_to_adjusted_sina_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = AkshareProvider(
+        id_generator=FixedIdGenerator([BATCH_ID]),
+        clock=lambda: FETCHED_AT,
+    )
+
+    def unavailable_eastmoney(**_: object) -> pd.DataFrame:
+        raise ConnectionError("Remote end closed connection")
+
+    monkeypatch.setattr(provider, "_load_daily_bars_fetcher", lambda: unavailable_eastmoney)
+    monkeypatch.setattr(
+        provider,
+        "_fetch_sina_daily",
+        lambda query, symbol: _sina_daily_frame(),
+    )
+
+    batch = provider.fetch_daily_bars(
+        DailyBarsQuery(
+            symbols=("510300.SH",),
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 10),
+            adjustment=PriceAdjustment.QFQ,
+        )
+    )
+
+    assert len(batch.records) == 1
+    assert batch.records[0]["query_symbol"] == "510300.SH"
+    assert batch.records[0]["close"] == 4.043
+    assert batch.request_metadata["adjustment"] == "QFQ"
+    assert batch.request_metadata["operations_by_symbol"] == {
+        "510300.SH": "fund_etf_hist_sina_qfq"
+    }
+
+
+def test_sina_qfq_adjusts_cash_distributions_and_share_splits() -> None:
+    raw = pd.DataFrame(
+        [
+            {
+                "date": "2025-06-17",
+                "open": 4.50,
+                "high": 4.52,
+                "low": 4.48,
+                "close": 4.50,
+            },
+            {
+                "date": "2025-06-18",
+                "open": 4.41,
+                "high": 4.43,
+                "low": 4.40,
+                "close": 4.412,
+            },
+            {
+                "date": "2026-07-06",
+                "open": 3.00,
+                "high": 3.02,
+                "low": 2.98,
+                "close": 3.009,
+            },
+            {
+                "date": "2026-07-07",
+                "open": 1.49,
+                "high": 1.51,
+                "low": 1.48,
+                "close": 1.501,
+            },
+        ]
+    )
+    factors = pd.DataFrame(
+        [
+            {"d": "1900-01-01", "f": "1", "s": "2", "u": "0.088"},
+            {"d": "2025-06-18", "f": "1", "s": "2", "u": "0"},
+            {"d": "2026-07-07", "f": "1", "s": "1", "u": "0"},
+        ]
+    )
+
+    adjusted = _adjust_sina_etf_qfq(raw, factors, symbol="159995.SZ")
+
+    assert adjusted["close"].tolist() == pytest.approx(
+        [2.162, 2.206, 1.5045, 1.501]
+    )
+    assert all(
+        len(str(value).partition(".")[2]) <= 6 for value in adjusted["close"]
+    )
+    assert adjusted["qfq_scale"].tolist() == [2, 2, 2, 1]
+    assert adjusted["qfq_cash"].tolist() == pytest.approx([0.088, 0, 0, 0])
+
+
+def test_sina_qfq_rejects_unknown_face_value_transformation() -> None:
+    factors = pd.DataFrame(
+        [{"d": "1900-01-01", "f": "2", "s": "1", "u": "0"}]
+    )
+
+    with pytest.raises(DomainError, match="face-value"):
+        _adjust_sina_etf_qfq(_sina_daily_frame(), factors, symbol="510300.SH")
 
 
 def test_trade_calendar_filters_range_but_preserves_raw_date_values() -> None:

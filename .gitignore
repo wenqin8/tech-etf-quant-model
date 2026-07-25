@@ -20,6 +20,10 @@ data/*.duckdb
 data/*.duckdb.wal
 logs/
 *.log
+backtest_outputs/
+scripts/local_*.py
+scripts/debug_*.py
+scripts/scratch_*.py
 .idea/
 .vscode/
 Thumbs.db

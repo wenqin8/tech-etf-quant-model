@@ -8,6 +8,7 @@ itself.  Unit translation (lots to shares) lives in
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -16,6 +17,7 @@ from importlib import import_module
 from typing import cast
 
 import pandas as pd
+import requests
 
 from etf_quant_lab.contracts.data import DailyBarsQuery, RawProviderBatch, TradeCalendarQuery
 from etf_quant_lab.contracts.enums import DataSource, PriceAdjustment
@@ -34,6 +36,8 @@ _DAILY_REQUIRED_COLUMNS = frozenset(
 _SINA_DAILY_REQUIRED_COLUMNS = frozenset(
     {"date", "open", "high", "low", "close", "volume", "amount"}
 )
+_SINA_QFQ_FACTOR_COLUMNS = frozenset({"d", "f", "s", "u"})
+_CANONICAL_PRICE_DECIMAL_PLACES = 6
 _CALENDAR_REQUIRED_COLUMNS = frozenset({"trade_date"})
 _ADJUSTMENT_ARGUMENT = {
     PriceAdjustment.RAW: "",
@@ -113,6 +117,84 @@ def _looks_like_network_error(error: Exception) -> bool:
     )
 
 
+def _adjust_sina_etf_qfq(
+    frame: pd.DataFrame,
+    factors: pd.DataFrame,
+    *,
+    symbol: str,
+) -> pd.DataFrame:
+    """Apply Sina's ETF front-adjustment parameters to raw OHLC prices.
+
+    Sina publishes ETF factor records as ``d/f/s/u``.  ``s`` is the reverse
+    cumulative share-split scale and ``u`` is the future cash-distribution
+    offset.  For the published ETF records ``f`` is the fund face value and is
+    currently always one.  The latest price remains unchanged:
+
+    ``qfq_price = raw_price / s - u``.
+
+    Unknown face-value transformations fail closed rather than silently
+    fabricating an adjusted series.
+    """
+
+    missing = _SINA_QFQ_FACTOR_COLUMNS - {str(column) for column in factors.columns}
+    if missing:
+        raise DomainError(
+            "DATA_SOURCE_SCHEMA_CHANGED",
+            "Sina ETF adjustment response is missing required fields",
+            details={"symbol": symbol, "missing_columns": tuple(sorted(missing))},
+        )
+    if "date" not in frame.columns:
+        return frame
+
+    working = frame.copy()
+    factor_frame = factors.loc[:, ["d", "f", "s", "u"]].copy()
+    working["date"] = pd.to_datetime(working["date"], errors="coerce")
+    factor_frame["d"] = pd.to_datetime(factor_frame["d"], errors="coerce")
+    for column in ("f", "s", "u"):
+        factor_frame[column] = pd.to_numeric(factor_frame[column], errors="coerce")
+
+    if (
+        bool(working["date"].isna().any())
+        or bool(factor_frame[["d", "f", "s", "u"]].isna().any().any())
+        or bool((factor_frame["s"] <= 0).any())
+    ):
+        raise DomainError(
+            "DATA_SOURCE_SCHEMA_CHANGED",
+            "Sina ETF adjustment response contains invalid values",
+            details={"symbol": symbol},
+        )
+    if not bool(factor_frame["f"].eq(1).all()):
+        raise DomainError(
+            "DATA_SOURCE_SCHEMA_CHANGED",
+            "Sina ETF adjustment uses an unsupported face-value transformation",
+            details={"symbol": symbol},
+        )
+
+    factor_frame = factor_frame.sort_values("d").rename(
+        columns={"d": "factor_date", "s": "qfq_scale", "u": "qfq_cash"}
+    )
+    adjusted = pd.merge_asof(
+        working.sort_values("date"),
+        factor_frame,
+        left_on="date",
+        right_on="factor_date",
+        direction="backward",
+    )
+    if bool(adjusted[["qfq_scale", "qfq_cash"]].isna().any().any()):
+        raise DomainError(
+            "DATA_SOURCE_SCHEMA_CHANGED",
+            "Sina ETF adjustment does not cover the requested history",
+            details={"symbol": symbol},
+        )
+
+    for column in ("open", "high", "low", "close"):
+        numeric = pd.to_numeric(adjusted[column], errors="coerce")
+        adjusted[column] = (
+            numeric / adjusted["qfq_scale"] - adjusted["qfq_cash"]
+        ).round(_CANONICAL_PRICE_DECIMAL_PLACES)
+    return adjusted.drop(columns=["factor_date", "f"])
+
+
 class AkshareProvider:
     """Fetch AKShare snapshots for cross-source validation or primary publication.
 
@@ -147,25 +229,28 @@ class AkshareProvider:
 
         The Eastmoney feed is tried first; when it is unreachable (a common
         failure behind local proxies) and no explicit fetcher was injected, the
-        sina daily feed serves as a fallback for RAW-adjustment queries.  The
-        two feeds' rows keep their native column names — the normalizer
-        auto-detects the dialect per record.
+        sina daily feed serves as a fallback for RAW queries.  QFQ queries also
+        use Sina's split/cash adjustment records to construct front-adjusted
+        OHLC locally.  The two feeds' rows keep their native column names — the
+        normalizer auto-detects the dialect per record.
         """
 
         fetcher = self._daily_bars_fetcher or self._load_daily_bars_fetcher()
         records: list[Mapping[str, object]] = []
         empty_symbols: list[str] = []
+        operations_by_symbol: dict[str, str] = {}
 
         for symbol in query.symbols:
             provider_symbol = self._provider_symbol(symbol)
             frame, operation = self._fetch_symbol_frame(
                 fetcher, query, symbol, provider_symbol
             )
+            operations_by_symbol[symbol] = operation
             self._validate_frame(
                 frame,
                 required_columns=(
                     _SINA_DAILY_REQUIRED_COLUMNS
-                    if operation == "fund_etf_hist_sina"
+                    if operation.startswith("fund_etf_hist_sina")
                     else _DAILY_REQUIRED_COLUMNS
                 ),
                 dataset=_DAILY_DATASET,
@@ -197,6 +282,7 @@ class AkshareProvider:
                 "provider_role": self._provider_role,
                 "publication_eligible": self._publication_eligible,
                 "empty_symbols": tuple(empty_symbols),
+                "operations_by_symbol": operations_by_symbol,
             },
         )
 
@@ -220,10 +306,10 @@ class AkshareProvider:
         except DomainError:
             raise
         except Exception as primary_error:
-            fallback_allowed = (
-                self._daily_bars_fetcher is None
-                and query.adjustment == PriceAdjustment.RAW
-            )
+            fallback_allowed = self._daily_bars_fetcher is None and query.adjustment in {
+                PriceAdjustment.RAW,
+                PriceAdjustment.QFQ,
+            }
             if not fallback_allowed:
                 raise self._unavailable_error(
                     dataset=_DAILY_DATASET,
@@ -231,7 +317,12 @@ class AkshareProvider:
                     symbol=symbol,
                 ) from primary_error
             frame = self._fetch_sina_daily(query, symbol)
-            return frame, "fund_etf_hist_sina"
+            operation = (
+                "fund_etf_hist_sina_qfq"
+                if query.adjustment == PriceAdjustment.QFQ
+                else "fund_etf_hist_sina"
+            )
+            return frame, operation
         return frame, "fund_etf_hist_em"
 
     def _fetch_sina_daily(self, query: DailyBarsQuery, symbol: str) -> pd.DataFrame:
@@ -244,6 +335,8 @@ class AkshareProvider:
             frame = _call_with_proxy_fallback(
                 lambda: cast(pd.DataFrame, sina_fetcher(symbol=sina_symbol))
             )
+        except DomainError:
+            raise
         except Exception as exc:
             raise self._unavailable_error(
                 dataset=_DAILY_DATASET,
@@ -256,7 +349,47 @@ class AkshareProvider:
         mask = (parsed >= pd.Timestamp(query.start_date)) & (
             parsed <= pd.Timestamp(query.end_date)
         )
-        return frame.loc[mask]
+        selected = frame.loc[mask].copy()
+        if query.adjustment != PriceAdjustment.QFQ:
+            return selected
+        factors = self._fetch_sina_qfq_factors(sina_symbol, symbol)
+        return _adjust_sina_etf_qfq(selected, factors, symbol=symbol)
+
+    def _fetch_sina_qfq_factors(
+        self,
+        sina_symbol: str,
+        symbol: str,
+    ) -> pd.DataFrame:
+        """Fetch and safely parse Sina's public ETF qfq.js adjustment records."""
+
+        url = (
+            "https://finance.sina.com.cn/realstock/company/"
+            f"{sina_symbol}/qfq.js"
+        )
+
+        def fetch() -> pd.DataFrame:
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+            separator = response.text.find("=")
+            payload_end = response.text.rfind("}")
+            if separator < 0 or payload_end <= separator:
+                raise ValueError("Sina ETF qfq response is not valid JavaScript data")
+            payload = json.loads(response.text[separator + 1 : payload_end + 1])
+            records = payload.get("data")
+            if not isinstance(records, list):
+                raise ValueError("Sina ETF qfq response has no data list")
+            return pd.DataFrame(records)
+
+        try:
+            return _call_with_proxy_fallback(fetch)
+        except DomainError:
+            raise
+        except Exception as exc:
+            raise self._unavailable_error(
+                dataset=_DAILY_DATASET,
+                operation="fund_etf_hist_sina_qfq",
+                symbol=symbol,
+            ) from exc
 
     def fetch_trade_calendar(self, query: TradeCalendarQuery) -> RawProviderBatch:
         """Fetch and range-filter the shared A-share calendar without rewriting raw dates."""

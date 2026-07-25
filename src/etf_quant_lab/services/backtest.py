@@ -16,9 +16,14 @@ from datetime import date
 from decimal import Decimal
 
 from etf_quant_lab.contracts.data import DailyBar
-from etf_quant_lab.contracts.enums import CostScenario, StrategyId
+from etf_quant_lab.contracts.enums import CostScenario, OrderSide, StrategyId
 from etf_quant_lab.contracts.errors import DomainError
-from etf_quant_lab.contracts.execution import CostModel, MarketQuote, PortfolioState
+from etf_quant_lab.contracts.execution import (
+    CostModel,
+    ExecutionResult,
+    MarketQuote,
+    PortfolioState,
+)
 from etf_quant_lab.contracts.performance import (
     DailyPortfolioRecord,
     DatedSkip,
@@ -118,6 +123,8 @@ def run_backtest(
     trades: list[DatedTrade] = []
     skips: list[DatedSkip] = []
     pending_weights: Mapping[str, Decimal] | None = None
+    position_holding_bars: dict[str, int] = {}
+    position_entry_prices: dict[str, Decimal] = {}
 
     for index, current_date in enumerate(trading_dates):
         # 1. Execute yesterday's decision at today's open (T+1 rule).
@@ -131,6 +138,11 @@ def run_backtest(
                 cost_model=request.cost_model,
             )
             state = result.state_after
+            _update_position_state(
+                result=result,
+                holding_bars=position_holding_bars,
+                entry_prices=position_entry_prices,
+            )
             trades.extend(
                 DatedTrade(trade_date=current_date, trade=trade) for trade in result.trades
             )
@@ -139,23 +151,13 @@ def run_backtest(
             )
             pending_weights = None
 
-        # 2. Decide targets at today's close on an as-of-bounded slice.
-        if index % request.rebalance_every_bars == 0 and index < len(trading_dates) - 1:
-            visible = tuple(bar for bar in all_bars if bar.trade_date <= current_date)
-            portfolio = strategy_service.generate_targets(
-                strategy_id=request.strategy_id,
-                version=request.strategy_version,
-                parameters=request.parameters,
-                as_of_date=current_date,
-                universe_symbols=request.symbols,
-                market_data=MarketDataView(as_of_date=current_date, bars=visible),
-            )
-            pending_weights = {
-                allocation.symbol: allocation.target_weight
-                for allocation in portfolio.allocations
-            }
+        # A position bought at today's open has completed one holding session at
+        # today's close. Existing positions advance by one bar as well.
+        for symbol in state.positions:
+            position_holding_bars[symbol] = position_holding_bars.get(symbol, 0) + 1
 
-        # 3. Mark to close for the daily record.
+        # 2. Mark to close before deciding, so current weights are true T-close
+        # weights while the eventual fills still occur no earlier than T+1 open.
         closes = close_by_date.get(current_date, {})
         known_closes = {
             symbol: closes[symbol]
@@ -169,9 +171,39 @@ def run_backtest(
                 "持仓标的缺少收盘价, 无法估值",
                 details={"symbols": tuple(sorted(missing))},
             )
-        records.append(
-            mark_to_close(current_date, state.cash, dict(state.positions), known_closes)
+        record = mark_to_close(
+            current_date, state.cash, dict(state.positions), known_closes
         )
+        records.append(record)
+
+        # 3. Decide targets at today's close on an as-of-bounded slice.
+        if index % request.rebalance_every_bars == 0 and index < len(trading_dates) - 1:
+            visible = tuple(bar for bar in all_bars if bar.trade_date <= current_date)
+            if record.total_equity > 0:
+                current_weights = {
+                    symbol: closes[symbol] * Decimal(shares) / record.total_equity
+                    for symbol, shares in state.positions.items()
+                }
+                cash_weight = state.cash / record.total_equity
+            else:
+                current_weights = {}
+                cash_weight = Decimal(1)
+            portfolio = strategy_service.generate_targets(
+                strategy_id=request.strategy_id,
+                version=request.strategy_version,
+                parameters=request.parameters,
+                as_of_date=current_date,
+                universe_symbols=request.symbols,
+                market_data=MarketDataView(as_of_date=current_date, bars=visible),
+                current_weights=current_weights,
+                cash_weight=cash_weight,
+                position_holding_bars=position_holding_bars,
+                position_entry_prices=position_entry_prices,
+            )
+            pending_weights = {
+                allocation.symbol: allocation.target_weight
+                for allocation in portfolio.allocations
+            }
 
     ledger = PortfolioLedger(
         records=tuple(records),
@@ -181,3 +213,42 @@ def run_backtest(
     )
     metrics = compute_metrics(ledger)
     return BacktestResult(request=request, ledger=ledger, metrics=metrics)
+
+
+def _update_position_state(
+    *,
+    result: ExecutionResult,
+    holding_bars: dict[str, int],
+    entry_prices: dict[str, Decimal],
+) -> None:
+    """Update average entry prices and reset/remove holding ages after fills."""
+
+    before = result.state_before
+    after = result.state_after
+    running_shares = dict(before.positions)
+    for trade in result.trades:
+        old_shares = running_shares.get(trade.symbol, 0)
+        if trade.side == OrderSide.BUY:
+            old_cost = entry_prices.get(trade.symbol, trade.executed_price)
+            new_shares = old_shares + trade.quantity
+            entry_prices[trade.symbol] = (
+                old_cost * Decimal(old_shares)
+                + trade.executed_price * Decimal(trade.quantity)
+            ) / Decimal(new_shares)
+            if old_shares == 0:
+                holding_bars[trade.symbol] = 0
+            running_shares[trade.symbol] = new_shares
+        else:
+            new_shares = old_shares - trade.quantity
+            if new_shares <= 0:
+                running_shares.pop(trade.symbol, None)
+                holding_bars.pop(trade.symbol, None)
+                entry_prices.pop(trade.symbol, None)
+            else:
+                running_shares[trade.symbol] = new_shares
+
+    # Reconcile skipped/partial executions with the authoritative portfolio.
+    for symbol in tuple(entry_prices):
+        if after.positions.get(symbol, 0) <= 0:
+            entry_prices.pop(symbol, None)
+            holding_bars.pop(symbol, None)

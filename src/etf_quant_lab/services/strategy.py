@@ -82,6 +82,8 @@ class StrategyService:
         market_data: MarketDataView,
         current_weights: Mapping[str, Decimal] | None = None,
         cash_weight: Decimal = Decimal(1),
+        position_holding_bars: Mapping[str, int] | None = None,
+        position_entry_prices: Mapping[str, Decimal] | None = None,
     ) -> TargetPortfolio:
         """Run a strategy for one date and enforce the target-portfolio contract."""
 
@@ -105,6 +107,8 @@ class StrategyService:
             market_data=market_data,
             current_weights=dict(current_weights or {}),
             cash_weight=cash_weight,
+            position_holding_bars=dict(position_holding_bars or {}),
+            position_entry_prices=dict(position_entry_prices or {}),
         )
         portfolio = strategy.generate_targets(context, validation.normalized_parameters)
         self._guard_portfolio(portfolio, strategy_id, version, as_of_date, universe_symbols)

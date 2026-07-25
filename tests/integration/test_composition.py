@@ -39,7 +39,11 @@ def test_full_context_registers_all_services(tmp_path: Path) -> None:
     # Both released strategies are registered and listable.
     descriptors = context.resolve("strategy").list_strategies()  # type: ignore[attr-defined]
     keys = {(d.strategy_id.value, d.version) for d in descriptors}
-    assert keys == {("TREND_BASELINE", "1.0.0"), ("ETF_ROTATION", "1.0.0")}
+    assert keys == {
+        ("TREND_BASELINE", "1.0.0"),
+        ("ETF_ROTATION", "1.0.0"),
+        ("THREE_DAY_TECH", "1.0.0"),
+    }
 
     # Migrations applied: core tables exist and are queryable.
     database = context.resolve("database")

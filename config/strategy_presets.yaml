@@ -15,4 +15,41 @@ presets:
     holdings_count: 3
     maximum_position_weight: 0.35
     minimum_cash_weight: 0.10
+  three_day_tech:
+    strategy_id: three_day_tech
+    rebalance_frequency: daily
+    equipment_symbols: [159516.SZ, 588170.SH]
+    chip_symbols: [159995.SZ]
+    satellite_symbols: [159992.SZ, 562500.SH]
+    pullback_window: 3
+    pullback_threshold: -0.075
+    require_reversal_confirmation: true
+    trend_fast_window: 20
+    trend_slow_window: 60
+    sideways_band: 0.02
+    swing_holding_bars: 5
+    atr_window: 10
+    initial_stop_atr_multiple: 3.0
+    breakeven_trigger_atr_multiple: 1.5
+    time_stop_bars: 5
+    time_stop_min_return: 0.02
+    first_profit_atr_multiple: 3.0
+    first_profit_remaining_fraction: 0.70
+    trailing_profit_drawdown: 0.09
+    second_profit_remaining_fraction: 0.20
+    volume_window: 20
+    volume_surge_multiple: 2.0
+    upper_shadow_body_multiple: 2.0
+    acceleration_daily_return: 0.05
+    bollinger_window: 20
+    bollinger_std_multiple: 2.0
+    extreme_profit: 0.50
+    extreme_daily_drop: 0.07
+    equipment_weight: 0.40
+    equipment_entry_weight: 0.20
+    chip_weight: 0.30
+    chip_entry_weight: 0.10
+    satellite_weight: 0.15
+    satellite_entry_weight: 0.05
+    minimum_cash_weight: 0.15
 

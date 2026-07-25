@@ -11,6 +11,7 @@ from etf_quant_lab.contracts.data import DailyBar
 from etf_quant_lab.contracts.enums import CostScenario, DataSource, Exchange, StrategyId
 from etf_quant_lab.contracts.errors import DomainError
 from etf_quant_lab.contracts.execution import CostModel
+from etf_quant_lab.domain.strategies.three_day_tech import ThreeDayTechStrategy
 from etf_quant_lab.domain.strategies.trend_baseline import TrendBaselineStrategy
 from etf_quant_lab.domain.strategy_registry import StrategyRegistry
 from etf_quant_lab.services.backtest import BacktestRequest, run_backtest
@@ -143,3 +144,52 @@ def test_too_short_range_is_rejected() -> None:
         )
 
     assert excinfo.value.code == "BT_RANGE_TOO_SHORT"
+
+
+def test_regime_strategy_receives_holding_age_and_exits_after_five_swing_days() -> None:
+    symbol = "159516.SZ"
+    closes = [Decimal("10")] * 61 + [
+        Decimal("10"),
+        Decimal("9.7"),
+        Decimal("9.2"),
+        Decimal("9.4"),
+    ] + [Decimal("9.5")] * 7
+    bars = tuple(
+        DailyBar(
+            symbol=symbol,
+            trade_date=START + timedelta(days=index),
+            exchange=Exchange.SZSE,
+            open=close,
+            high=close + Decimal("0.02"),
+            low=close - Decimal("0.02"),
+            close=close,
+            volume=Decimal("10000"),
+            amount=Decimal("100000"),
+            source=DataSource.TUSHARE,
+            batch_id="01K0D7F7P6XQ4M2Z8H9B3C5NV1",
+            ingested_at=INGESTED_AT,
+        )
+        for index, close in enumerate(closes)
+    )
+    strategy = ThreeDayTechStrategy()
+    parameters = {spec.name: spec.default for spec in strategy.parameter_specs()}
+    registry = StrategyRegistry()
+    registry.register(strategy)
+    service = StrategyService(registry)
+    request = BacktestRequest(
+        strategy_id=StrategyId.THREE_DAY_TECH,
+        strategy_version="1.0.0",
+        parameters=parameters,
+        symbols=(symbol,),
+        start_date=START + timedelta(days=64),
+        end_date=START + timedelta(days=71),
+        initial_cash=Decimal("15000"),
+        cost_model=IDEAL,
+        lot_sizes={symbol: 100},
+    )
+
+    result = run_backtest(service, request=request, bars=bars)
+
+    assert [trade.trade.side.value for trade in result.ledger.trades] == ["BUY", "SELL"]
+    buy_date, sell_date = (trade.trade_date for trade in result.ledger.trades)
+    assert sell_date - buy_date == timedelta(days=5)

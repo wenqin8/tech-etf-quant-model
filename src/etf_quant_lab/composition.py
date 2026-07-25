@@ -12,6 +12,7 @@ from etf_quant_lab.app_context import ApplicationContext, build_application_cont
 from etf_quant_lab.config import AppSettings
 from etf_quant_lab.contracts.enums import StrategyId
 from etf_quant_lab.domain.strategies.etf_rotation import EtfRotationStrategy
+from etf_quant_lab.domain.strategies.three_day_tech import ThreeDayTechStrategy
 from etf_quant_lab.domain.strategies.trend_baseline import TrendBaselineStrategy
 from etf_quant_lab.domain.strategy_registry import StrategyRegistry
 from etf_quant_lab.ids import UlidGenerator
@@ -40,6 +41,7 @@ def build_strategy_registry() -> StrategyRegistry:
     registry = StrategyRegistry()
     registry.register(TrendBaselineStrategy())
     registry.register(EtfRotationStrategy())
+    registry.register(ThreeDayTechStrategy())
     return registry
 
 
